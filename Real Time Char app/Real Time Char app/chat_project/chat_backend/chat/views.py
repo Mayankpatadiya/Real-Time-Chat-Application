@@ -1,4 +1,5 @@
 from django.shortcuts import render , redirect
+from django.db import models
 from django.http import HttpResponse
 from django.http import HttpRequest
 from django.contrib.auth.models import User
@@ -89,6 +90,11 @@ def login_view(request):
 @login_required(login_url='login')
 def dashboard(request):
     users = UserProfile.objects.exclude(user=request.user).order_by('id')
+    try:
+        user_profile = UserProfile.objects.get(user=request.user)
+        groups = ChatGroup.objects.filter(models.Q(members=user_profile) | models.Q(created_by=user_profile)).distinct()
+    except UserProfile.DoesNotExist:
+        groups = []
 
     if request.method == "POST":
         text = request.POST.get("message")
@@ -96,7 +102,8 @@ def dashboard(request):
             print("MESSAGE RECEIVED:", text)
 
     return render(request, 'dashboard.html', {
-        'users': users
+        'users': users,
+        'groups': groups
     })
 
 
@@ -208,5 +215,41 @@ def chat_view(request, user_id):
         "users": users,
         "active_user": other_user,
         "chat": chat,
+        "messages": messages_qs,
+    })
+
+@login_required(login_url='login')
+def group_chat_view(request, group_id):
+    group = ChatGroup.objects.get(id=group_id)
+    try:
+        user_profile = UserProfile.objects.get(user=request.user)
+    except UserProfile.DoesNotExist:
+        return redirect('dashboard')
+
+    # Check membership
+    if user_profile not in group.members.all() and group.created_by != user_profile:
+        messages.error(request, "You are not a member of this group")
+        return redirect('dashboard')
+
+    if request.method == "POST":
+        text = request.POST.get('message')
+        if text:
+            Message.objects.create(
+                group=group,
+                sender=request.user,
+                content=text
+            )
+        return redirect('group_chat', group_id=group.id)
+
+    messages_qs = group.messages.order_by('created_at')
+    
+    # Context for sidebar
+    users = UserProfile.objects.exclude(user=request.user)
+    groups = ChatGroup.objects.filter(models.Q(members=user_profile) | models.Q(created_by=user_profile)).distinct()
+
+    return render(request, "dashboard.html", {
+        "users": users,
+        "groups": groups,
+        "active_group": group,
         "messages": messages_qs,
     })

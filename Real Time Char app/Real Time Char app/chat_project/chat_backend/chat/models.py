@@ -39,7 +39,16 @@ class Message(models.Model):
     chat = models.ForeignKey(
         Chat,
         on_delete=models.CASCADE,
-        related_name="messages"
+        related_name="messages",
+        null=True,
+        blank=True
+    )
+    group = models.ForeignKey(
+        ChatGroup,
+        on_delete=models.CASCADE,
+        related_name="messages",
+        null=True,
+        blank=True
     )
     sender = models.ForeignKey(
         User,

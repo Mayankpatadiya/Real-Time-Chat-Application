@@ -145,6 +145,30 @@
       <!-- Contacts List -->
       <div id="contactsList" class="flex-1 overflow-y-auto scrollbar-hide px-2 py-2 space-y-1">
 
+        <!-- Groups Section -->
+        {% if groups %}
+        <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          Groups
+        </div>
+        {% for group in groups %}
+        <a href="{% url 'group_chat' group.id %}"
+          class="contact-item p-4 rounded-2xl hover:bg-gray-800/50 cursor-pointer transition-all duration-200 flex items-center space-x-4 group">
+          <div class="w-12 h-12 bg-indigo-500 rounded-xl flex items-center justify-center text-white font-bold">
+            {{ group.name|first|upper }}
+          </div>
+          <div class="flex-1 min-w-0">
+            <h4 class="font-medium text-white truncate">
+              {{ group.name }}
+            </h4>
+            <p class="text-xs text-gray-400 truncate">
+              {{ group.members.count }} members
+            </p>
+          </div>
+        </a>
+        {% endfor %}
+        <div class="my-2 border-b border-gray-800/50"></div>
+        {% endif %}
+
         {% for profile in users %}
         <a href="{% url 'chat' profile.user.id %}"
           class="contact-item p-4 rounded-2xl hover:bg-gray-800/50 cursor-pointer transition-all duration-200 flex items-center space-x-4 group">
@@ -218,6 +242,22 @@
             </div>
           </div>
         </div>
+        {% elif active_group %}
+        <div class="flex items-center space-x-4">
+          <div class="flex items-center space-x-3">
+            <div class="w-12 h-12 bg-indigo-500 rounded-2xl flex items-center justify-center text-white font-bold">
+              {{ active_group.name|first|upper }}
+            </div>
+            <div>
+              <h2 class="font-bold text-white">
+                {{ active_group.name }}
+              </h2>
+              <span class="text-sm text-indigo-400">
+                {{ active_group.members.count }} members
+              </span>
+            </div>
+          </div>
+        </div>
         {% else %}
         <h2 class="text-gray-400">Select a chat</h2>
         {% endif %}
@@ -278,9 +318,19 @@
                 </button>
               </form>
 
+              {% elif active_group %}
+              <form method="POST" class="flex w-full space-x-2" id="messageForm">
+                {% csrf_token %}
+                <input id="msg" type="text" placeholder="Type message..."
+                  class="flex-1 px-4 py-2 rounded-xl bg-transparent text-white focus:outline-none">
+                <button type="button" id="sendBtn"
+                  class="bg-emerald-500 px-4 rounded-xl text-white hover:bg-emerald-600 transition-all duration-200">
+                  Send
+                </button>
+              </form>
               {% else %}
               <p class="text-gray-500 text-center">
-                Select a user to start chatting
+                Select a user or group to start chatting
               </p>
               {% endif %}
 
@@ -294,52 +344,78 @@
   <script>
 
     const chatId = "{{ chat.id }}";
+    const groupId = "{{ active_group.id }}";
     let socket = null;
 
     {% if active_user and chat %}
-    // Initialize WebSocket connection
+    // Initialize WebSocket connection for Private Chat
     socket = new WebSocket(
       "ws://" + window.location.host + "/ws/chat/" + chatId + "/"
     );
-    console.log("Chat ID:", chatId);
-
-    socket.onopen = function () {
-      console.log("✅ WebSocket connected");
-    };
-
-    socket.onerror = function (e) {
-      console.error("❌ WebSocket error", e);
-    };
-
-    socket.onclose = function (e) {
-      console.log("⚠️ WebSocket closed", e);
-    };
-
-
-    socket.onmessage = function (e) {
-      const data = JSON.parse(e.data);
-      const container = document.getElementById("messagesContainer");
-      const currentUser = "{{ request.user.username }}";
-
-      // Check if message is from current user
-      const isCurrentUser = data.sender === currentUser;
-
-      const div = document.createElement("div");
-      div.className = `flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`;
-
-      div.innerHTML = `
-        <div class="max-w-xs px-4 py-2 rounded-2xl ${isCurrentUser
-          ? 'bg-emerald-500 text-white'
-          : 'bg-gray-800 text-white'
-        }">
-          ${data.message}
-        </div>
-      `;
-
-      container.appendChild(div);
-      container.scrollTop = container.scrollHeight;
-    };
+    {% elif active_group %}
+    // Initialize WebSocket connection for Group Chat
+    socket = new WebSocket(
+      "ws://" + window.location.host + "/ws/group/" + groupId + "/"
+    );
     {% endif %}
+
+    if (socket) {
+      console.log("Connecting to WebSocket...");
+
+      socket.onopen = function () {
+        console.log("✅ WebSocket connected");
+      };
+
+      socket.onerror = function (e) {
+        console.error("❌ WebSocket error", e);
+      };
+
+      socket.onclose = function (e) {
+        console.log("⚠️ WebSocket closed", e);
+      };
+
+      socket.onmessage = function (e) {
+        const data = JSON.parse(e.data);
+        const container = document.getElementById("messagesContainer");
+        const currentUser = "{{ request.user.username }}";
+
+        if (data.type === 'typing') {
+          if (data.sender !== currentUser) {
+            updateTypingIndicator(data.typing, data.sender);
+          }
+          return;
+        }
+
+        // Check if message is from current user
+        const isCurrentUser = data.sender === currentUser;
+
+        // Remove typing indicator if it exists (optional, or it might just stay until timeout)
+        // removeTypingIndicator(); 
+
+        const div = document.createElement("div");
+        div.className = `flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`;
+
+        let senderNameHtml = '';
+        if (!isCurrentUser && "{{ active_group }}" !== "") {
+          senderNameHtml = `<div class="text-[10px] text-gray-400 mb-1 ml-1">${data.sender}</div>`;
+        }
+
+        div.innerHTML = `
+            <div>
+                ${senderNameHtml}
+                <div class="max-w-xs px-4 py-2 rounded-2xl ${isCurrentUser
+            ? 'bg-emerald-500 text-white'
+            : 'bg-gray-800 text-white'
+          }">
+                ${data.message}
+                </div>
+            </div>
+          `;
+
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+      };
+    }
 
     function sendMessage() {
       if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -446,31 +522,61 @@
       });
     }
 
-    // Typing indicator
-    let typingIndicator = null;
-    function addTypingIndicator() {
-      typingIndicator = document.createElement('div');
-      typingIndicator.className = 'flex items-center gap-3 typing-indicator';
-      typingIndicator.innerHTML = `
-        <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-2xl flex-shrink-0 flex items-center justify-center text-sm font-bold text-white shadow-lg">
-          AA
-        </div>
-        <div class="flex items-center space-x-2 bg-gray-800/70 backdrop-blur-sm border border-gray-700 rounded-2xl px-5 py-3">
-          <div class="flex space-x-1">
-            <div class="w-2 h-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-0.16s]"></div>
-            <div class="w-2 h-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-0.08s]"></div>
-            <div class="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
-          </div>
-        </div>
-      `;
-      messagesContainer.appendChild(typingIndicator);
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    // Typing indicator logic
+    let typingTimeout = null;
+    const msgInput = document.getElementById("msg");
+
+    if (msgInput) {
+      msgInput.addEventListener("input", function () {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({
+            'typing': true
+          }));
+        }
+
+        if (typingTimeout) clearTimeout(typingTimeout);
+
+        typingTimeout = setTimeout(function () {
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+              'typing': false
+            }));
+          }
+        }, 1000); // Send 'not typing' after 1 second of inactivity
+      });
     }
 
-    function removeTypingIndicator() {
-      if (typingIndicator) {
-        typingIndicator.remove();
-        typingIndicator = null;
+    let typingIndicatorElement = null;
+
+    function updateTypingIndicator(isTyping, senderName) {
+      const container = document.getElementById("messagesContainer");
+
+      // Remove existing indicator if any
+      if (typingIndicatorElement) {
+        typingIndicatorElement.remove();
+        typingIndicatorElement = null;
+      }
+
+      if (isTyping) {
+        typingIndicatorElement = document.createElement('div');
+        typingIndicatorElement.className = 'flex items-center gap-3 typing-indicator mb-4';
+        typingIndicatorElement.innerHTML = `
+                <div class="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-white shadow-lg">
+                  ${senderName.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                    <div class="text-[10px] text-gray-400 ml-1 mb-1">${senderName} is typing...</div>
+                    <div class="flex items-center space-x-2 bg-gray-800/70 backdrop-blur-sm border border-gray-700 rounded-2xl px-4 py-2">
+                      <div class="flex space-x-1">
+                        <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.16s]"></div>
+                        <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.08s]"></div>
+                        <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
+                      </div>
+                    </div>
+                </div>
+            `;
+        container.appendChild(typingIndicatorElement);
+        container.scrollTop = container.scrollHeight;
       }
     }
 
