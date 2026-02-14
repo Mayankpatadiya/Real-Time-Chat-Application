@@ -248,13 +248,21 @@
             <div class="w-12 h-12 bg-indigo-500 rounded-2xl flex items-center justify-center text-white font-bold">
               {{ active_group.name|first|upper }}
             </div>
-            <div>
-              <h2 class="font-bold text-white">
+            <div class="flex flex-col">
+              <h2 class="font-bold text-white text-lg">
                 {{ active_group.name }}
               </h2>
-              <span class="text-sm text-indigo-400">
-                {{ active_group.members.count }} members
-              </span>
+              <div class="flex flex-col">
+                <span class="text-xs font-semibold text-indigo-400 mb-0.5">
+                  {{ active_group.members.count }} members
+                </span>
+                <span class="text-xs text-gray-400 truncate max-w-sm"
+                  title="{% for member in active_group.members.all %}{{ member.user.username }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+                  {% for member in active_group.members.all %}
+                  {{ member.user.username }}{% if not forloop.last %}, {% endif %}
+                  {% endfor %}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -277,6 +285,9 @@
            {% else %}
              bg-gray-800 text-white
            {% endif %}">
+            {% if active_group and msg.sender != request.user %}
+            <div class="text-[10px] text-gray-400 mb-1 ml-1">{{ msg.sender.username }}</div>
+            {% endif %}
             {{ msg.content }}
           </div>
         </div>
@@ -341,23 +352,25 @@
     </main>
   </div>
 
-  <script>
+  {{ chat.id|default:None|json_script:"chat-id" }}
+  {{ active_group.id|default:None|json_script:"group-id" }}
 
-    const chatId = "{{ chat.id }}";
-    const groupId = "{{ active_group.id }}";
+  <script>
+    const chatId = JSON.parse(document.getElementById('chat-id').textContent);
+    const groupId = JSON.parse(document.getElementById('group-id').textContent);
     let socket = null;
 
-    {% if active_user and chat %}
-    // Initialize WebSocket connection for Private Chat
-    socket = new WebSocket(
-      "ws://" + window.location.host + "/ws/chat/" + chatId + "/"
-    );
-    {% elif active_group %}
-    // Initialize WebSocket connection for Group Chat
-    socket = new WebSocket(
-      "ws://" + window.location.host + "/ws/group/" + groupId + "/"
-    );
-    {% endif %}
+    if (chatId) {
+      // Initialize WebSocket connection for Private Chat
+      socket = new WebSocket(
+        "ws://" + window.location.host + "/ws/chat/" + chatId + "/"
+      );
+    } else if (groupId) {
+      // Initialize WebSocket connection for Group Chat
+      socket = new WebSocket(
+        "ws://" + window.location.host + "/ws/group/" + groupId + "/"
+      );
+    }
 
     if (socket) {
       console.log("Connecting to WebSocket...");
@@ -513,8 +526,9 @@
       });
     }
 
-    if (messageInputElement) {
-      messageInputElement.addEventListener('keypress', (e) => {
+    const msgInputKey = document.getElementById("msg");
+    if (msgInputKey) {
+      msgInputKey.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
           sendMessage();
@@ -581,23 +595,6 @@
     }
 
 
-    // Voice recording simulation
-    const voiceBtn = document.getElementById('voiceBtn');
-    voiceBtn.addEventListener('mousedown', () => {
-      voiceBtn.innerHTML = '<i class="fas fa-stop"></i>';
-      voiceBtn.classList.add('bg-red-500', 'animate-pulse');
-    });
-    voiceBtn.addEventListener('mouseup', () => {
-      voiceBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-      voiceBtn.classList.remove('bg-red-500', 'animate-pulse');
-      addMessage('🎤 Voice message (5s)', false);
-    });
-
-    // Auto-resize textarea
-    messageInput.addEventListener('input', function () {
-      this.style.height = 'auto';
-      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-    });
   </script>
 </body>
 

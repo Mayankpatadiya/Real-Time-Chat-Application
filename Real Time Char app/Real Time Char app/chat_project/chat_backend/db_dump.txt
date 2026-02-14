@@ -1,0 +1,17 @@
+--- Users ---
+User: yagi (ID: 2), Profile ID: 1
+User: yogin (ID: 1), Profile ID: 2
+User: mrudul (ID: 3), Profile ID: 3
+User: 12 (ID: 5), Profile ID: 4
+User: krunal (ID: 6), Profile ID: 5
+User: rishi (ID: 8), Profile ID: 8
+User: jay (ID: 9), Profile ID: 9
+User: mayank patadiya1 (ID: 4), Profile ID: 7
+User: tarun (ID: 7), Profile ID: 6
+
+--- Groups ---
+Group: Geetanjali (ID: 1), Created By: mayank patadiya1
+  Members:
+    - yagi (Profile ID: 1)
+    - yogin (Profile ID: 2)
+    - mrudul (Profile ID: 3)

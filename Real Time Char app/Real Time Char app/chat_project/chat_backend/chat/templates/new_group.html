@@ -1,13 +1,15 @@
 {% load static%}
 <!DOCTYPE html>
 <html lang="en" class="h-full">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Create Group - ChatTiko</title>
-    <link rel="stylesheet" href="{% static 'css/output.css' %}">
+  <link rel="stylesheet" href="{% static 'css/output.css' %}">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 </head>
+
 <body class="bg-gradient-to-br from-gray-900 via-gray-800 to-black text-gray-100 min-h-screen p-6">
   <div class="max-w-3xl mx-auto">
     <div class="flex items-center justify-between mb-6">
@@ -16,46 +18,55 @@
         <p class="text-sm text-gray-400">Add a name and select members to create a group chat</p>
       </div>
       <div class="space-x-2">
-        <a href="{% url 'dashboard' %}" class="inline-flex items-center px-3 py-2 bg-gray-800/50 hover:bg-gray-700 rounded-xl">
+        <a href="{% url 'dashboard' %}"
+          class="inline-flex items-center px-3 py-2 bg-gray-800/50 hover:bg-gray-700 rounded-xl">
           <i class="fas fa-arrow-left mr-2"></i> Back
         </a>
       </div>
     </div>
 
     {% if messages %}
-      <div class="mb-4">
-        {% for message in messages %}
-          <div class="px-4 py-2 rounded-lg text-sm {% if message.tags %}bg-green-800 text-green-300{% else %}bg-gray-800 text-gray-200{% endif %}">{{ message }}</div>
-        {% endfor %}
-      </div>
+    <div class="mb-4">
+      {% for message in messages %}
+      <div
+        class="px-4 py-2 rounded-lg text-sm {% if message.tags %}bg-green-800 text-green-300{% else %}bg-gray-800 text-gray-200{% endif %}">
+        {{ message }}</div>
+      {% endfor %}
+    </div>
     {% endif %}
 
     <div class="bg-gray-900/60 border border-gray-800 rounded-3xl p-6">
       <form method="post">
         {% csrf_token %}
         <label class="block mb-2 text-sm text-gray-300">Group Name</label>
-        <input name="name" required class="w-full mb-4 px-4 py-3 rounded-xl bg-transparent border border-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Team Alpha">
+        <input name="name" required
+          class="w-full mb-4 px-4 py-3 rounded-xl bg-transparent border border-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          placeholder="Team Alpha">
 
         <label class="block mb-2 text-sm text-gray-300">Members</label>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-64 overflow-y-auto mb-4">
           {% for user in users %}
-            <label class="flex items-center space-x-3 p-3 bg-gray-800/50 border border-gray-700 rounded-xl cursor-pointer">
-              <input type="checkbox" name="members" value="{{ user.id }}" class="w-4 h-4">
-              <div class="flex-1">
-                <div class="font-medium text-white">{{ user.username }}</div>
-                <div class="text-xs text-gray-400">{{ user.email }}</div>
-              </div>
-            </label>
+          <label
+            class="flex items-center space-x-3 p-3 bg-gray-800/50 border border-gray-700 rounded-xl cursor-pointer">
+            <input type="checkbox" name="members" value="{{ user.id }}" class="w-4 h-4">
+            <div class="flex-1">
+              <div class="font-medium text-white">{{ user.user.username }}</div>
+              <div class="text-xs text-gray-400">{{ user.user.email }}</div>
+            </div>
+          </label>
           {% empty %}
-            <div class="text-sm text-gray-400">No contacts available.</div>
+          <div class="text-sm text-gray-400">No contacts available.</div>
           {% endfor %}
         </div>
 
         <div class="flex justify-end">
-          <button type="submit" class="px-6 py-3 bg-emerald-500 hover:from-emerald-600 hover:to-teal-600 rounded-2xl shadow-md">Create Group</button>
+          <button type="submit"
+            class="px-6 py-3 bg-emerald-500 hover:from-emerald-600 hover:to-teal-600 rounded-2xl shadow-md">Create
+            Group</button>
         </div>
       </form>
     </div>
   </div>
 </body>
+
 </html>

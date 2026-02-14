@@ -105,6 +105,30 @@ def dashboard(request):
         'users': users,
         'groups': groups
     })
+# ...
+
+@login_required(login_url='login')
+def create_group(request):
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        members_ids = request.POST.getlist('members')
+
+        try:
+            created_by = UserProfile.objects.get(user=request.user)
+        except UserProfile.DoesNotExist:
+             messages.error(request, "User profile not found")
+             return redirect('dashboard')
+
+        group = ChatGroup.objects.create(
+            name=name,
+            created_by=created_by
+        )
+
+        if members_ids:
+            group.members.set(UserProfile.objects.filter(id__in=members_ids))
+
+        messages.success(request, 'Group created successfully')
+        return redirect('dashboard')
 
 
 
@@ -169,6 +193,9 @@ def create_group(request):
         if members_ids:
             group.members.set(UserProfile.objects.filter(id__in=members_ids))
 
+        # Add the creator to the group members
+        group.members.add(created_by)
+
         messages.success(request, 'Group created successfully')
         return redirect('dashboard')
 
@@ -210,9 +237,15 @@ def chat_view(request, user_id):
 
     messages_qs = chat.messages.order_by('created_at')
     users = UserProfile.objects.exclude(user=request.user)
+    try:
+        user_profile = UserProfile.objects.get(user=request.user)
+        groups = ChatGroup.objects.filter(models.Q(members=user_profile) | models.Q(created_by=user_profile)).distinct()
+    except UserProfile.DoesNotExist:
+        groups = []
 
     return render(request, "dashboard.html", {
         "users": users,
+        "groups": groups,
         "active_user": other_user,
         "chat": chat,
         "messages": messages_qs,
