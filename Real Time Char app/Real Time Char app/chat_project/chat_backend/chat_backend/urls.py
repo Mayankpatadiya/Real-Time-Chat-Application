@@ -32,6 +32,7 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('chat/<int:user_id>/', views.chat_view, name='chat'),
     path('group/<int:group_id>/', views.group_chat_view, name='group_chat'),
+    path('upload/', views.upload_file, name='upload_file'),
 
 ]
 

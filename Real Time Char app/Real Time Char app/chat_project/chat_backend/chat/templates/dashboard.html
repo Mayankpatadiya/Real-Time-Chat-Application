@@ -173,20 +173,29 @@
         <a href="{% url 'chat' profile.user.id %}"
           class="contact-item p-4 rounded-2xl hover:bg-gray-800/50 cursor-pointer transition-all duration-200 flex items-center space-x-4 group">
 
-          {% if profile.profile_photo %}
-          <img src="{{ profile.profile_photo.url }}" class="w-12 h-12 rounded-xl">
-          {% else %}
-          <div class="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-bold">
-            {{ profile.user.username|first|upper }}
+          <div class="relative">
+            {% if profile.profile_photo %}
+            <img src="{{ profile.profile_photo.url }}" class="w-12 h-12 rounded-xl">
+            {% else %}
+            <div class="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-bold">
+              {{ profile.user.username|first|upper }}
+            </div>
+            {% endif %}
+            {% if profile.is_online %}
+            <span class="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-gray-900 rounded-full"></span>
+            {% endif %}
           </div>
-          {% endif %}
 
           <div class="flex-1 min-w-0">
             <h4 class="font-medium text-white truncate">
               {{ profile.user.username }}
             </h4>
             <p class="text-xs text-gray-400 truncate">
+              {% if profile.is_online %}
+              <span class="text-emerald-400">● Online</span>
+              {% else %}
               Click to chat
+              {% endif %}
             </p>
           </div>
 
@@ -236,9 +245,19 @@
               <h2 class="font-bold text-white">
                 {{ active_user.username }}
               </h2>
-              <span class="text-sm text-emerald-400">
-                Online
-              </span>
+              <div class="flex items-center space-x-1">
+                {% if user_is_online %}
+                <span class="w-2 h-2 bg-emerald-400 rounded-full"></span>
+                <span class="text-sm text-emerald-400">
+                  Online
+                </span>
+                {% else %}
+                <span class="w-2 h-2 bg-gray-500 rounded-full"></span>
+                <span class="text-sm text-gray-500">
+                  Offline
+                </span>
+                {% endif %}
+              </div>
             </div>
           </div>
         </div>
@@ -275,20 +294,31 @@
 
       <!-- Messages Container -->
       <div id="messagesContainer" class="flex-1 overflow-y-auto px-8 py-6 space-y-4">
-
         {% if messages %}
         {% for msg in messages %}
         <div class="flex {% if msg.sender == request.user %}justify-end{% endif %}">
-          <div class="max-w-xs px-4 py-2 rounded-2xl
-           {% if msg.sender == request.user %}
-             bg-emerald-500 text-white
-           {% else %}
-             bg-gray-800 text-white
-           {% endif %}">
+          <div class="max-w-xs">
             {% if active_group and msg.sender != request.user %}
-            <div class="text-[10px] text-gray-400 mb-1 ml-1">{{ msg.sender.username }}</div>
+            <div class="text-[10px] text-gray-400 mb-1 ml-1 text-left">{{ msg.sender.username }}</div>
             {% endif %}
-            {{ msg.content }}
+
+            <div
+              class="px-4 py-2 rounded-2xl {% if msg.sender == request.user %}bg-emerald-500 text-white{% else %}bg-gray-800 text-white{% endif %}">
+              {% if msg.message_type == 'text' %}
+              {{ msg.content }}
+              {% elif msg.message_type == 'image' %}
+              <a href="{{ msg.file.url }}" target="_blank">
+                <img src="{{ msg.file.url }}" class="rounded-lg max-w-full h-auto cursor-pointer" alt="Shared image">
+              </a>
+              {% elif msg.message_type == 'file' %}
+              <div class="flex items-center space-x-2">
+                <i class="fas fa-file-alt text-lg"></i>
+                <a href="{{ msg.file.url }}" target="_blank" class="underline truncate">
+                  {{ msg.file.name|cut:"chat_files/" }}
+                </a>
+              </div>
+              {% endif %}
+            </div>
           </div>
         </div>
         {% endfor %}
@@ -297,7 +327,6 @@
           No messages yet
         </p>
         {% endif %}
-
       </div>
 
 
@@ -306,15 +335,21 @@
         <div class="max-w-4xl mx-auto">
           <div
             class="flex items-end space-x-4 bg-gray-800/50 border border-gray-700 rounded-3xl p-4 hover:border-gray-600 transition-all duration-200">
-            <button
-              class="p-3 text-gray-500 hover:text-white hover:bg-gray-700/50 rounded-2xl transition-all duration-200 group relative">
-              <i class="fas fa-paperclip text-lg"></i>
-              <div
-                class="absolute -bottom-8 left-1/2 -translate-x-1/2 w-40 bg-gray-800 border border-gray-700 rounded-xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
-                <div class="px-3 py-2 text-sm">📎 Attach file</div>
-                <div class="px-3 py-2 text-sm border-t border-gray-700">📷 Gallery</div>
-              </div>
-            </button>
+            <div class="relative group">
+              <button id="attachmentBtn"
+                class="p-3 text-gray-500 hover:text-white hover:bg-gray-700/50 rounded-2xl transition-all duration-200 group relative">
+                <i class="fas fa-paperclip text-lg"></i>
+                <div
+                  class="absolute -bottom-8 left-1/2 -translate-x-1/2 w-40 bg-gray-800 border border-gray-700 rounded-xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
+                  <div class="px-3 py-2 text-sm cursor-pointer hover:bg-gray-700"
+                    onclick="document.getElementById('fileInput').click()">📎 Attach file</div>
+                  <div class="px-3 py-2 text-sm border-t border-gray-700 cursor-pointer hover:bg-gray-700"
+                    onclick="document.getElementById('fileInput').accept='image/*'; document.getElementById('fileInput').click()">
+                    📷 Gallery</div>
+                </div>
+              </button>
+              <input type="file" id="fileInput" class="hidden" onchange="handleFileUpload(this)">
+            </div>
 
             <div class="flex-1 flex items-end space-x-2">
               {% if active_user %}
@@ -399,28 +434,41 @@
           return;
         }
 
-        // Check if message is from current user
         const isCurrentUser = data.sender === currentUser;
-
-        // Remove typing indicator if it exists (optional, or it might just stay until timeout)
-        // removeTypingIndicator(); 
-
         const div = document.createElement("div");
         div.className = `flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`;
 
         let senderNameHtml = '';
-        if (!isCurrentUser && "{{ active_group }}" !== "") {
+        if (!isCurrentUser && (groupId || "{{ active_group }}" !== "")) {
           senderNameHtml = `<div class="text-[10px] text-gray-400 mb-1 ml-1">${data.sender}</div>`;
         }
 
+        let messageContent = '';
+        if (data.message_type === 'image') {
+          messageContent = `
+            <a href="${data.file_url}" target="_blank">
+              <img src="${data.file_url}" class="rounded-lg max-w-full h-auto cursor-pointer" alt="Shared image">
+            </a>`;
+        } else if (data.message_type === 'file') {
+          messageContent = `
+            <div class="flex items-center space-x-2">
+              <i class="fas fa-file-alt text-lg"></i>
+              <a href="${data.file_url}" target="_blank" class="underline truncate">
+                ${data.file_name}
+              </a>
+            </div>`;
+        } else {
+          messageContent = data.message;
+        }
+
         div.innerHTML = `
-            <div>
+            <div class="max-w-xs">
                 ${senderNameHtml}
-                <div class="max-w-xs px-4 py-2 rounded-2xl ${isCurrentUser
+                <div class="px-4 py-2 rounded-2xl ${isCurrentUser
             ? 'bg-emerald-500 text-white'
             : 'bg-gray-800 text-white'
           }">
-                ${data.message}
+                ${messageContent}
                 </div>
             </div>
           `;
@@ -595,6 +643,40 @@
     }
 
 
+    function handleFileUpload(input) {
+      if (!input.files || !input.files[0]) return;
+
+      const file = input.files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+
+      if (chatId) formData.append('chat_id', chatId);
+      if (groupId) formData.append('group_id', groupId);
+
+      // Show some loading state if you want
+      console.log('Uploading file...');
+
+      fetch('/upload/', {
+        method: 'POST',
+        body: formData,
+        // CSRF is handled by @csrf_exempt in views for now, or you can add it here
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === 'success') {
+            console.log('File uploaded successfully');
+            input.value = ''; // Reset input
+          } else {
+            console.error('Upload failed:', data.error);
+          }
+        })
+        .catch(error => {
+          console.error('Error uploading file:', error);
+        });
+    }
   </script>
 </body>
 

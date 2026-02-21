@@ -2,7 +2,8 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.db.models import Q
-from chat.models import Chat, Message, ChatGroup
+from django.utils import timezone
+from chat.models import Chat, Message, ChatGroup, UserProfile
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -20,6 +21,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.close()
             return
 
+        # Update user's last_seen timestamp
+        await self.update_user_presence()
+
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
@@ -29,6 +33,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
 
     async def disconnect(self, close_code):
+        # Update user's last_seen timestamp on disconnect
+        await self.update_user_presence()
+        
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
@@ -73,7 +80,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def chat_message(self, event):
         await self.send(text_data=json.dumps({
             'type': 'chat_message',
-            'message': event['message'],
+            'message': event.get('message', ''),
+            'file_url': event.get('file_url'),
+            'file_name': event.get('file_name'),
+            'message_type': event.get('message_type', 'text'),
             'sender': event['sender'],
             'sender_id': event['sender_id'],
         }))
@@ -100,6 +110,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
             sender=self.user,
             content=message
         )
+    
+    @database_sync_to_async
+    def update_user_presence(self):
+        try:
+            user_profile = UserProfile.objects.get(user=self.user)
+            user_profile.last_seen = timezone.now()
+            user_profile.save(update_fields=['last_seen'])
+        except UserProfile.DoesNotExist:
+            pass
 
 
 class GroupConsumer(AsyncWebsocketConsumer):
@@ -116,6 +135,9 @@ class GroupConsumer(AsyncWebsocketConsumer):
             await self.close()
             return
 
+        # Update user's last_seen timestamp
+        await self.update_user_presence()
+
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
@@ -124,6 +146,9 @@ class GroupConsumer(AsyncWebsocketConsumer):
         await self.accept()
 
     async def disconnect(self, close_code):
+        # Update user's last_seen timestamp on disconnect
+        await self.update_user_presence()
+        
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
@@ -168,7 +193,10 @@ class GroupConsumer(AsyncWebsocketConsumer):
     async def chat_message(self, event):
         await self.send(text_data=json.dumps({
             'type': 'chat_message',
-            'message': event['message'],
+            'message': event.get('message', ''),
+            'file_url': event.get('file_url'),
+            'file_name': event.get('file_name'),
+            'message_type': event.get('message_type', 'text'),
             'sender': event['sender'],
             'sender_id': event['sender_id'],
         }))
@@ -197,3 +225,12 @@ class GroupConsumer(AsyncWebsocketConsumer):
             sender=self.user,
             content=message
         )
+    
+    @database_sync_to_async
+    def update_user_presence(self):
+        try:
+            user_profile = UserProfile.objects.get(user=self.user)
+            user_profile.last_seen = timezone.now()
+            user_profile.save(update_fields=['last_seen'])
+        except UserProfile.DoesNotExist:
+            pass

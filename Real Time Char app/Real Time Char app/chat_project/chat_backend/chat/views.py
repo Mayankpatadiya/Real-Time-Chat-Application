@@ -1,6 +1,6 @@
 from django.shortcuts import render , redirect
 from django.db import models
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.http import HttpRequest
 from django.contrib.auth.models import User
 from .models import Chat, Message
@@ -12,6 +12,74 @@ from django.urls import reverse_lazy
 from django.contrib.auth import logout
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.views.decorators.csrf import csrf_exempt
+import os
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+
+# ... existing views ...
+
+@login_required(login_url='login')
+@csrf_exempt
+def upload_file(request):
+    if request.method == 'POST':
+        file = request.FILES.get('file')
+        chat_id = request.POST.get('chat_id')
+        group_id = request.POST.get('group_id')
+        
+        if not file:
+            return JsonResponse({'error': 'No file uploaded'}, status=400)
+            
+        # Determine message type
+        ext = os.path.splitext(file.name)[1].lower()
+        if ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
+            msg_type = 'image'
+        else:
+            msg_type = 'file'
+            
+        msg_params = {
+            'sender': request.user,
+            'file': file,
+            'message_type': msg_type,
+        }
+        
+        room_group_name = None
+        
+        if chat_id:
+            chat = Chat.objects.get(id=chat_id)
+            msg_params['chat'] = chat
+            room_group_name = f'chat_{chat_id}'
+        elif group_id:
+            group = ChatGroup.objects.get(id=group_id)
+            msg_params['group'] = group
+            room_group_name = f'group_{group_id}'
+        else:
+            return JsonResponse({'error': 'No chat or group ID provided'}, status=400)
+            
+        message = Message.objects.create(**msg_params)
+        
+        # Broadcast via Channels
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            room_group_name,
+            {
+                'type': 'chat_message',
+                'message': '',  # Empty text for file messages
+                'file_url': message.file.url,
+                'file_name': file.name,
+                'message_type': msg_type,
+                'sender': request.user.username,
+                'sender_id': request.user.id,
+            }
+        )
+        
+        return JsonResponse({
+            'status': 'success',
+            'file_url': message.file.url,
+            'message_type': msg_type
+        })
+        
+    return JsonResponse({'error': 'Invalid request'}, status=400)
 
 
 
@@ -242,6 +310,13 @@ def chat_view(request, user_id):
         groups = ChatGroup.objects.filter(models.Q(members=user_profile) | models.Q(created_by=user_profile)).distinct()
     except UserProfile.DoesNotExist:
         groups = []
+    
+    # Check if the other user is online
+    try:
+        other_user_profile = UserProfile.objects.get(user=other_user)
+        user_is_online = other_user_profile.is_online()
+    except UserProfile.DoesNotExist:
+        user_is_online = False
 
     return render(request, "dashboard.html", {
         "users": users,
@@ -249,6 +324,7 @@ def chat_view(request, user_id):
         "active_user": other_user,
         "chat": chat,
         "messages": messages_qs,
+        "user_is_online": user_is_online,
     })
 
 @login_required(login_url='login')

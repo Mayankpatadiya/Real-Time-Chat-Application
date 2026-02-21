@@ -5,10 +5,18 @@ from django.contrib.auth.models import User
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     profile_photo = models.ImageField(upload_to='profiles/', blank=True, null=True)
+    last_seen = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         
         return self.user.username
+    
+    def is_online(self):
+        from django.utils import timezone
+        from datetime import timedelta
+        if self.last_seen:
+            return timezone.now() - self.last_seen < timedelta(minutes=5)
+        return False
 
 
 class ChatGroup(models.Model):
@@ -36,6 +44,11 @@ class Chat(models.Model):
 
 
 class Message(models.Model):
+    MESSAGE_TYPES = (
+        ('text', 'Text'),
+        ('image', 'Image'),
+        ('file', 'File'),
+    )
     chat = models.ForeignKey(
         Chat,
         on_delete=models.CASCADE,
@@ -55,8 +68,12 @@ class Message(models.Model):
         on_delete=models.CASCADE,
         related_name="sent_messages"
     )
-    content = models.TextField()
+    content = models.TextField(blank=True, null=True)
+    file = models.FileField(upload_to='chat_files/', blank=True, null=True)
+    message_type = models.CharField(max_length=10, choices=MESSAGE_TYPES, default='text')
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.sender}: {self.content[:20]}"
+        if self.message_type == 'text':
+            return f"{self.sender}: {self.content[:20]}"
+        return f"{self.sender}: {self.message_type} file"
